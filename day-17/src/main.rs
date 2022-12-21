@@ -1,19 +1,53 @@
 #![feature(is_some_and)]
 
-use kdam::tqdm;
+use std::collections::HashMap;
 use crate::map::{AirDirection, Map};
+use crate::rock_formations::FORMATIONS_LENGTH;
 
 mod map;
 mod rock_formations;
 
 fn main() {
-    println!("{}", question_1(PUZZLE_INPUT))
+    println!("{}", solve(PUZZLE_INPUT, 1000000000000))
 }
 
-fn question_1(input: &str) -> usize {
+fn solve(input: &str, rocks_to_fall: usize) -> usize {
+    // (index of char in sequence, rock_shape, height profile of rocks below)
+    //      -> (rock turn last time this happened, height last time this happened, blow turn last time this happened)
+    let mut cache: HashMap<(usize, usize, [usize; 7]), (usize, usize, usize)> = HashMap::new();
+    let mut height_added_through_cached_patterns = 0;
+
     let mut m = Map::new();
     let mut blow_turn = 0;
-    for rock_turn in tqdm!(0..2022) {
+    let mut rock_turn = 0;
+    while rock_turn < rocks_to_fall {
+        let char_index = blow_turn % input.len();
+        let rock_index = rock_turn % FORMATIONS_LENGTH;
+        let height_profile = m.get_height_profile();
+        let cache_key = (char_index, rock_index, height_profile);
+        let cache_value = (rock_turn, m.highest_rock_row(), blow_turn);
+        if cache.contains_key(&cache_key) {
+            let (rock_turn_this_last_happened, height_this_last_happened, blow_turn_this_last_happened ) = cache.get(&cache_key).unwrap();
+            let current_height = m.highest_rock_row();
+            let rock_turns_in_this_pattern = rock_turn - rock_turn_this_last_happened;
+            let blow_turns_in_this_pattern = blow_turn - blow_turn_this_last_happened;
+            let height_added_by_this_pattern = current_height - height_this_last_happened;
+            let turns_left = rocks_to_fall - rock_turn;
+            let times_this_pattern_will_occur = turns_left / rock_turns_in_this_pattern;
+            let remainder = turns_left % rock_turns_in_this_pattern;
+            //  ^^^^^^^^^ lazy, something doesn't work with jumping then continuing,
+            //      instead wait for one that will exactly get me there.
+            if remainder == 0 && times_this_pattern_will_occur > 1 {
+                height_added_through_cached_patterns = times_this_pattern_will_occur * height_added_by_this_pattern;
+                let rock_turns_skipped = times_this_pattern_will_occur * rock_turns_in_this_pattern;
+                let blow_turns_skipped = times_this_pattern_will_occur * blow_turns_in_this_pattern;
+                rock_turn += rock_turns_skipped;
+                blow_turn += blow_turns_skipped;
+                println!("Skipping {} rocks", rock_turns_skipped);
+                continue;
+            }
+        }
+
         m.spawn_rock(rock_turn);
         let direction = get_direction(input, blow_turn);
         m.blow(direction);
@@ -23,8 +57,10 @@ fn question_1(input: &str) -> usize {
             m.blow(direction);
             blow_turn += 1
         }
+        cache.insert(cache_key, cache_value);
+        rock_turn += 1;
     }
-    m.highest_rock_row()
+    m.highest_rock_row() + height_added_through_cached_patterns
 }
 
 fn get_direction(sequence: &str, turn: usize) -> AirDirection {

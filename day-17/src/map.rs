@@ -14,7 +14,7 @@ pub enum AirDirection {
 
 type Coord = (usize, usize);
 
-const HEIGHT: usize = 4000;
+const HEIGHT: usize = 10000;
 const WIDTH: usize = 7;
 
 pub struct Map {
@@ -137,6 +137,17 @@ impl Map {
             }
         }
         0
+    }
+    pub fn get_height_profile(&self) -> [usize; WIDTH] {
+        let mut a = [0; WIDTH];
+        for x in 0..WIDTH {
+            for (y, row) in self.map.iter().enumerate().rev() {
+                if row[x] != Point::Empty {
+                    a[x] = y;
+                }
+            }
+        }
+        a
     }
 }
 
